@@ -36,12 +36,32 @@ class DateTimeEncoder(JSONEncoder):
 class EInvoice(Document):
     def validate(self):
         efris_log_info("Validating EInvoice")
+        self.validate_unique_invoice()
         self.validate_uom()
         self.validate_items()
 
+    def validate_unique_invoice(self):
+        if self.is_new() and self.invoice:
+            existing = frappe.db.get_value(
+                "E Invoice",
+                {"invoice": self.invoice, "name": ("!=", self.name)},
+                "name",
+            )
+            if existing:
+                frappe.throw(
+                    _("An E Invoice {0} already exists for {1} {2}.").format(
+                        existing, self._get_source_doctype(), self.invoice
+                    ),
+                    title=_("Duplicate E Invoice"),
+                )
+
+    def _get_source_doctype(self):
+        return self.source_doctype or "Sales Invoice"
+
     def before_submit(self):
-        original_invoice = frappe.get_doc("Sales Invoice", {"name": self.name})
-        efris_log_info(f"Sales Invoice IRN :{original_invoice}")
+        source_doctype = self._get_source_doctype()
+        original_invoice = frappe.get_doc(source_doctype, self.invoice)
+        efris_log_info(f"{source_doctype} IRN :{original_invoice}")
         fdn = original_invoice.efris_irn
         if fdn:
             self.irn = fdn
@@ -49,7 +69,7 @@ class EInvoice(Document):
         if not self.irn:
             msg = _("Cannot submit e-invoice without EFRIS.") + " "
             msg += _(
-                "You must generate EFRIS for the sales invoice to submit this e-invoice."
+                "You must generate EFRIS for the invoice to submit this e-invoice."
             )
             frappe.throw(msg, title=_("Missing EFRIS"))
 
@@ -61,6 +81,7 @@ class EInvoice(Document):
         self.update_sales_invoice()
 
     def update_sales_invoice(self):
+        source_doctype = self._get_source_doctype()
         dataSource = self.data_source
         data_source_map = {
             "101": "EFD",
@@ -73,7 +94,7 @@ class EInvoice(Document):
         data_source = data_source_map.get(dataSource, "")
         # Update main fields of Sales Invoice
         frappe.db.set_value(
-            "Sales Invoice",
+            source_doctype,
             self.invoice,
             {
                 "efris_einvoice_status": self.status,
@@ -86,7 +107,7 @@ class EInvoice(Document):
 
     def on_cancel(self):
         frappe.db.set_value(
-            "Sales Invoice",
+            self._get_source_doctype(),
             self.invoice,
             "efris_e_invoice",
             self.name,
@@ -178,7 +199,7 @@ class EInvoice(Document):
         self.qr_code = ""
 
     def set_sales_invoice(self):
-        self.sales_invoice = frappe.get_doc("Sales Invoice", self.invoice)
+        self.sales_invoice = frappe.get_doc(self._get_source_doctype(), self.invoice)
 
     def set_invoice_type(self):
         return 1

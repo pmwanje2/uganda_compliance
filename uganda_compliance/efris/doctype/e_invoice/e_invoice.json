@@ -19,6 +19,7 @@
   "efris_qr_code",
   "column_break_6",
   "invoice_type",
+  "source_doctype",
   "invoice",
   "irn",
   "invoice_date",
@@ -246,13 +247,21 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "Sales Invoice",
+   "fieldname": "source_doctype",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Source Doctype",
+   "options": "Sales Invoice\nPOS Invoice",
+   "reqd": 1
+  },
+  {
    "fieldname": "invoice",
-   "fieldtype": "Link",
+   "fieldtype": "Dynamic Link",
    "in_list_view": 1,
    "label": "Invoice Number",
-   "options": "Sales Invoice",
-   "reqd": 1,
-   "unique": 1
+   "options": "source_doctype",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_1",
