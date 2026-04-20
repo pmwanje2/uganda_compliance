@@ -356,9 +356,9 @@ class EInvoice(Document):
         company = frappe.get_doc("Company", {"name": self.seller_legal_name})
         self.seller_nin_or_brn = company.efris_nin_or_brn
 
-        self.seller_gstin = self.sales_invoice.company_tax_id
+        self.seller_gstin = getattr(self.sales_invoice, "company_tax_id", None) or company.tax_id
 
-        self.seller_reference_no = self.sales_invoice.efris_seller_reference_no
+        self.seller_reference_no = getattr(self.sales_invoice, "efris_seller_reference_no", None)
         if not self.seller_reference_no:
             self.seller_reference_no = self.sales_invoice.name
         self.seller_trade_name = self.company
@@ -794,7 +794,9 @@ class EInvoice(Document):
         for row in self.e_payments:
             # Map mode_of_payment to the corresponding EFRIS code
             mode_of_payment = row.mode_of_payment
-            if mode_of_payment and mode_of_payment != CONST_EFRIS_PAYMENT_MODE_CREDIT:
+            if float(row.amount) == 0.0:
+                continue
+            if mode_of_payment and mode_of_payment != CONST_EFRIS_PAYMENT_MODE_CREDIT and row.amount > 0:
                 efris_payment_mode = frappe.db.get_value(
                     "Mode of Payment", {"name": mode_of_payment}, "efris_payment_mode"
                 )
@@ -862,18 +864,17 @@ def calculate_additional_discounts(invoice):
 
 def _get_valid_document(invoice):
     """
-    Fetch and validate the Sales Invoice document.
+    Fetch and validate a Sales Invoice or POS Invoice document.
     """
-    try:
-        doc = frappe.get_doc("Sales Invoice", invoice)
-        if isinstance(doc, str):
-            doc = json.loads(doc)
-        return doc
-    except (json.JSONDecodeError, Exception) as e:
-        frappe.log_error(
-            f"Failed to process document: {e}", "calculate_additional_discounts Error"
-        )
-        return None
+    for doctype in ("Sales Invoice", "POS Invoice"):
+        try:
+            if frappe.db.exists(doctype, invoice):
+                return frappe.get_doc(doctype, invoice)
+        except Exception as e:
+            frappe.log_error(
+                f"Failed to process document: {e}", "calculate_additional_discounts Error"
+            )
+    return None
 
 
 def _calculate_taxes_and_discounts(doc, item_taxes, discount_percentage):
@@ -936,8 +937,6 @@ def calculate_tax_by_category(invoice):
     """
     Calculate total tax per tax category for Sales Invoice items.
     """
-
-    doc = frappe.get_doc("Sales Invoice", invoice)
 
     doc = _get_valid_document(invoice)
 

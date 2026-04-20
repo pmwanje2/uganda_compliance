@@ -32,9 +32,15 @@ class EInvoiceAPI:
         if isinstance(sales_invoice, six.string_types):
             sales_invoice = safe_load_json(sales_invoice)
             if not isinstance(sales_invoice, dict):
-                frappe.throw(_("Invalid Argument: Sales Invoice"))
+                frappe.throw(_("Invalid Argument: Sales Invoice or POS Invoice"))
             sales_invoice = frappe._dict(sales_invoice)
-            return sales_invoice
+        elif isinstance(sales_invoice, dict) and not isinstance(sales_invoice, frappe._dict):
+            sales_invoice = frappe._dict(sales_invoice)
+
+        doctype = sales_invoice.get("doctype", "Sales Invoice")
+        if doctype not in ("Sales Invoice", "POS Invoice"):
+            frappe.throw(_(f"Invalid Argument: Expected Sales Invoice or POS Invoice, got {doctype}"))
+        return sales_invoice
 
     @staticmethod
     def create_einvoice(sales_invoice_name, source_doctype="Sales Invoice"):
@@ -1509,7 +1515,7 @@ def validate_company(doc):
     company_name = doc.get("company", "")
 
     if not company_name:
-        return valid
+        return frappe.throw("Company is required for EFRIS integration.")
 
     try:
         einvoicing_settings = frappe.get_all(
