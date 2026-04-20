@@ -287,6 +287,7 @@ doc_events = {
 
 
 doctype_list_js = {
+    "POS Invoice": ["efris/client_scripts/pos_invoice.js"],
     "Sales Invoice": ["efris/client_scripts/sales_invoice.js"],
     "Purchase Receipt": ["efris/client_scripts/purchase_receipt.js"],
     "Stock Entry": ["efris/client_scripts/stock_entry.js"],
