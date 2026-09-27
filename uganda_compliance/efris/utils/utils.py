@@ -33,8 +33,11 @@ def safe_load_json(message):
 
 
 def efris_log_info(message):
+    # Debug trace goes to logs/uganda_compliance.log, not the Error Log table:
+    # at POS volumes the old frappe.log_error() call created dozens of Error Logs per sale.
     frappe.logger("uganda_compliance", allow_site=True).info(message)
-
+    
+    
 
 def efris_log_warning(message):
     frappe.msgprint(_("Warning: ") + message, alert=True, indicator="orange")

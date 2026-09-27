@@ -284,3 +284,4 @@ function validate_uoms_table(frm) {
         }
     });
 }
+
