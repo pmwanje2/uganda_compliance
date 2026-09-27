@@ -233,12 +233,13 @@ app_include_js = "/assets/uganda_compliance/js/item_custom.js"
 
 doc_events = {
     "Sales Invoice": {
-        "on_submit": "uganda_compliance.efris.api_classes.e_invoice.on_submit_sales_invoice",
+        "on_submit": "uganda_compliance.efris.efris_queue.on_submit_invoice",
         "on_update": [
             "uganda_compliance.efris.api_classes.e_invoice.on_update_sales_invoice",
             "uganda_compliance.efris.api_classes.e_invoice.calculate_additional_discounts",
         ],
         "on_cancel": "uganda_compliance.efris.api_classes.e_invoice.on_cancel_sales_invoice",
+        "before_cancel": "uganda_compliance.efris.efris_queue.on_cancel_invoice",
         "before_save": [
             "uganda_compliance.efris.api_classes.e_invoice.Sales_invoice_is_efris_validation",
             "uganda_compliance.efris.api_classes.e_invoice.sales_uom_validation",
@@ -276,7 +277,11 @@ doc_events = {
         "before_save": "uganda_compliance.efris.api_classes.e_company.before_save_query_company"
     },
     "POS Invoice": {
-        "on_submit": "uganda_compliance.efris.api_classes.e_invoice.on_submit_pos_invoice",
+        "on_submit": [
+            "uganda_compliance.efris.api_classes.e_invoice.sync_additional_discount_percentage",
+            "uganda_compliance.efris.efris_queue.on_submit_invoice",
+        ],
+        "before_cancel": "uganda_compliance.efris.efris_queue.on_cancel_invoice",
         "before_save": [
             "uganda_compliance.efris.api_classes.e_invoice.Sales_invoice_is_efris_validation",
             "uganda_compliance.efris.api_classes.e_invoice.sales_uom_validation",
