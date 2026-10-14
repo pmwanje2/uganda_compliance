@@ -61,6 +61,7 @@ def process_stock_submission(doctype, name):
             else:
                 send_stock_entry(doc)
         except Exception:
+            frappe.logger("efris").exception("EFRIS stock submission remains pending")
             frappe.clear_last_message()
             frappe.log_error(title=f"EFRIS stock pending: {doctype} {name}", message=frappe.get_traceback())
             # Completed groups remain registered; the hourly sweep retries only

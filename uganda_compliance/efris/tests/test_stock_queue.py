@@ -119,15 +119,14 @@ class TestStockQueue(EfrisTestCase):
     def test_waste_reasons_map_to_ura_codes(self):
         for reason, code in (("Expired", "101"), ("Damaged/Breakage", "102"),
                              ("Staff meal/Comp", "103"), ("Missing/other", "104")):
-            with self.subTest(reason=reason):
-                with patch.object(stock_in, "make_post", return_value=(True, {})) as http:
-                    doc = frappe.get_doc({
-                        "doctype": "Stock Entry", "name": "WASTE-TEST", "company": self.company,
-                        "purpose": "Material Issue", "efris_adjustment_type": reason,
-                        "remarks": "Recorded reason", "posting_date": frappe.utils.nowdate(),
-                        "items": [{"item_code": self.item, "qty": 1, "basic_rate": 1000,
-                                   "s_warehouse": self.ctx.warehouse, "stock_uom": "Nos"}],
-                    })
-                    stock_in.send_stock_entry(doc)
-                    self.assertIsNotNone(http.call_args)
-                    self.assertEqual(http.call_args.kwargs["content"]["goodsStockIn"]["adjustType"], code)
+            with self.subTest(reason=reason), patch.object(stock_in, "make_post", return_value=(True, {})) as http:
+                doc = frappe.get_doc({
+                    "doctype": "Stock Entry", "name": "WASTE-TEST", "company": self.company,
+                    "purpose": "Material Issue", "efris_adjustment_type": reason,
+                    "remarks": "Recorded reason", "posting_date": frappe.utils.nowdate(),
+                    "items": [{"item_code": self.item, "qty": 1, "basic_rate": 1000,
+                               "s_warehouse": self.ctx.warehouse, "stock_uom": "Nos"}],
+                })
+                stock_in.send_stock_entry(doc)
+                self.assertIsNotNone(http.call_args)
+                self.assertEqual(http.call_args.kwargs["content"]["goodsStockIn"]["adjustType"], code)
