@@ -1325,7 +1325,7 @@ def validate_efris_warehouse(doc):
         (
             item.get("warehouse")
             for item in doc.get("items", [])
-            if item.get("warehouse")
+            if item.get("warehouse") and frappe.db.get_value("Item", item.get("item_code"), "is_stock_item")
         ),
         None,
     )
