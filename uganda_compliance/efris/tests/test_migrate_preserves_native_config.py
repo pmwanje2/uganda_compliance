@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 
 import frappe
-from frappe.utils.fixtures import sync_fixtures
 from frappe.modules.utils import sync_customizations_for_doctype
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils.fixtures import sync_fixtures
 
 APP = Path(__file__).resolve().parents[2]
 
