@@ -60,7 +60,7 @@ def process_stock_submission(doctype, name):
                 send_stock_reconciliation(doc)
             else:
                 send_stock_entry(doc)
-        except Exception:
+        except Exception:  # noqa: BLE001 - a worker failure must not roll back the document
             frappe.clear_last_message()
             frappe.log_error(title=f"EFRIS stock pending: {doctype} {name}", message=frappe.get_traceback())
             # Completed groups remain registered; the hourly sweep retries only
