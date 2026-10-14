@@ -566,7 +566,8 @@ def before_submit_on_stock_entry(doc, method):
             
         is_efris = item.get('efris_transfer')
         item_code = item.get('item_code')
-        item_company = frappe.db.get_value('Item',{'item_code':item_code},'efris_e_company')
+        from uganda_compliance.efris.api_classes.e_goods_services import item_companies
+        item_company = item_companies(frappe.get_doc("Item", item_code))
         # check if item has_batch_no flag checked
         s_warehouse = item.get('s_warehouse')   
         efris_log_info(f"The Source warehouse is {s_warehouse}")
@@ -608,7 +609,7 @@ def before_submit_on_stock_entry(doc, method):
             efris_log_info(f"The efris currency is {efris_currency}")
             purchase_company = purchase_doc.company
             efris_log_info(f"The Purchase receipt company is {purchase_company}")
-            if not item_company == purchase_company:
+            if purchase_company not in item_company:
                 frappe.throw(f"The Item E-Company Must be the same as the Purchase Receipt Company ")
             # Match item codes in both Stock Entry and Purchase Receipt
             purchase_item = next((pi for pi in purchase_doc.get('items', []) if pi.item_code == item.item_code), None)
