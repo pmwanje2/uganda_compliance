@@ -1350,13 +1350,14 @@ def set_efris_based_on_items(doc, items):
             doc.efris_invoice = 1
             target_warehouse = item.get("warehouse")
 
-            is_efris_warehouse = frappe.db.get_value(
-                "Warehouse", {"name": target_warehouse}, "efris_warehouse"
-            )
-            if not is_efris_warehouse:
-                frappe.throw(
-                    f"Target Warehouse {target_warehouse} must be an EFRIS Warehouse"
+            if frappe.db.get_value("Item", item_code, "is_stock_item"):
+                is_efris_warehouse = frappe.db.get_value(
+                    "Warehouse", {"name": target_warehouse}, "efris_warehouse"
                 )
+                if not is_efris_warehouse:
+                    frappe.throw(
+                        f"Target Warehouse {target_warehouse} must be an EFRIS Warehouse"
+                    )
 
             customer = doc.get("customer")
             efris_customer_type = frappe.db.get_value(
