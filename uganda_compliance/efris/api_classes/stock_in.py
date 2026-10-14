@@ -790,6 +790,12 @@ def get_serial_batch_no(serial_and_batch_bundle):
 @frappe.whitelist()
 def process_pending_efris_stock_entries():
     """Queue pending child rows using the existing registration flags."""
+    from uganda_compliance.efris.api_classes.e_goods_services import enqueue_item_registration
+
+    for item in frappe.get_all("Item", filters={"efris_item": 1, "efris_registered": 0, "disabled": 0},
+                               fields=["name", "efris_e_company"]):
+        if get_efris_settings(item.efris_e_company):
+            enqueue_item_registration(item.name)
     queued = []
     for doctype in ("Purchase Receipt", "Stock Reconciliation", "Stock Entry"):
         for name in frappe.get_all(doctype, filters={"docstatus": 1}, pluck="name"):
