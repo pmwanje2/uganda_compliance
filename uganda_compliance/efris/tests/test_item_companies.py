@@ -121,6 +121,39 @@ class TestItemCompanies(EfrisTestCase):
         with self.assertRaises(frappe.ValidationError):
             stock_in.before_save_on_purchase_receipt(receipt, "before_save")
 
+    def test_stock_entry_from_company_b_receipt_uses_item_company_list(self):
+        item = frappe.copy_doc(self.item())
+        item.item_code = "EFRIS-E1-SHARED-TRANSFER"
+        item.is_stock_item = 1
+        with self.capture_jobs([]):
+            item.insert(ignore_permissions=True)
+        warehouse = frappe.db.get_value("Warehouse", {"company": self.company_b, "is_group": 0})
+        frappe.db.set_value("Warehouse", warehouse, "efris_warehouse", 1)
+        supplier = frappe.get_doc({
+            "doctype": "Supplier", "supplier_name": "EFRIS E1 Transfer Supplier",
+            "supplier_group": "All Supplier Groups", "supplier_type": "Company", "tax_id": "1000000004",
+        }).insert(ignore_permissions=True)
+        receipt = frappe.get_doc({
+            "doctype": "Purchase Receipt", "company": self.company_b, "supplier": supplier.name,
+            "efris_stockin_type": "102:Local Purchase", "currency": "UGX",
+            "items": [{"item_code": item.name, "qty": 2, "rate": 1250, "warehouse": warehouse,
+                       "efris_receipt": 1, "efris_unit_price": 1250, "efris_currency": "UGX"}],
+        })
+        with self.capture_jobs([]), patch.object(stock_in, "make_post", side_effect=AssertionError("HTTP on submit")):
+            receipt.insert(ignore_permissions=True)
+            receipt.submit()
+        entry = frappe.get_doc({
+            "doctype": "Stock Entry", "company": self.company_b, "purpose": "Material Transfer",
+            "items": [{"item_code": item.name, "qty": 1, "t_warehouse": warehouse, "efris_transfer": 1,
+                       "efris_purchase_receipt_no": receipt.name}],
+        })
+        with self.capture_jobs([]):
+            stock_in.before_submit_on_stock_entry(entry, "on_submit")
+        self.assertEqual((entry.items[0].efris_currency, entry.items[0].efris_unit_price), ("UGX", 1250))
+        frappe.db.delete("EFRIS Item Company", {"parent": item.name, "company": self.company_b})
+        with self.capture_jobs([]), self.assertRaises(frappe.ValidationError):
+            stock_in.before_submit_on_stock_entry(entry, "on_submit")
+
     def test_migration_preserves_legacy_registration_and_is_idempotent(self):
         self.assertTrue(frappe.get_meta("Item").has_field("efris_companies"), "Item needs a company list")
         item = frappe.get_doc("Item", "EFRIS-TEST-SUGAR-1KG")
