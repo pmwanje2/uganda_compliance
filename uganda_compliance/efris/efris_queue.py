@@ -741,11 +741,23 @@ def load_invoice_for_efris(doctype, doc_or_name, ptype="submit"):
 	return frappe.get_doc(doctype, name)
 
 
+def check_e_invoice_write_permission(doc):
+	"""Manual fiscal actions belong to the fiscal record, not the sale.
+
+	A queued first attempt may not have inserted it yet. Check the same native
+	permission against an unsaved linked E Invoice without creating any record.
+	"""
+	einvoice = e_invoice_api.get_einvoice(doc.name) or frappe.get_doc(
+		{"doctype": "E Invoice", "invoice": doc.name, "source_doctype": doc.doctype, "company": doc.company}
+	)
+	frappe.has_permission("E Invoice", "write", einvoice, throw=True)
+
+
 @frappe.whitelist(methods=["POST"])
 @rate_limit(limit=30, seconds=60)
 def send_invoice_to_efris(doctype, name):
 	"""Manual "Send to EFRIS" / "Retry EFRIS". Runs synchronously and returns the outcome."""
-	doc = load_invoice_for_efris(doctype, name, "submit")
+	doc = load_invoice_for_efris(doctype, name, "read")
 	if doc.docstatus != 1:
 		frappe.throw(_("Only submitted invoices can be sent to EFRIS"))
 	if not cint(doc.get("efris_invoice")):
@@ -754,6 +766,7 @@ def send_invoice_to_efris(doctype, name):
 		frappe.throw(_("Consolidated invoices are fiscalised through their POS Invoices"))
 	if not get_efris_settings(doc.company):
 		frappe.throw(_("E Invoicing is not enabled for company {0}").format(doc.company))
+	check_e_invoice_write_permission(doc)
 
 	return process_efris_submission(doc.doctype, doc.name, manual=True)
 
