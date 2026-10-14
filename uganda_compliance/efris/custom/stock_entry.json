@@ -1,6 +1,16 @@
 {
  "custom_fields": [
   {
+   "dt": "Stock Entry",
+   "fieldname": "efris_adjustment_type",
+   "fieldtype": "Select",
+   "label": "EFRIS Adjust-out Reason",
+   "insert_after": "efris_posted",
+   "depends_on": "eval:doc.purpose == 'Material Issue'",
+   "options": "\n101:Expired\n102:Damaged/Breakage\n103:Staff meal/Comp\n104:Missing/other",
+   "name": "Stock Entry-efris_adjustment_type"
+  },
+  {
    "_assign": null,
    "_comments": null,
    "_liked_by": null,
