@@ -1517,9 +1517,6 @@ def _update_row_values(
     for key, value in values.items():
         row.db_set(key, value)
 
-    frappe.db.commit()
-
-
 def decode_e_tax_rate(tax_rate, e_tax_category):
     e_tax_code = e_tax_category.split(":")[0]
     if e_tax_code == "01":

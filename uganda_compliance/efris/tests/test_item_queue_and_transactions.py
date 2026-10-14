@@ -32,6 +32,7 @@ class TestItemQueueAndTransactions(EfrisTestCase):
     def test_registration_success_is_persisted_without_resaving_item(self):
         item = frappe.get_doc("Item", "EFRIS-TEST-SUGAR-1KG")
         frappe.db.set_value("Item", item.name, "efris_registered", 0)
+        item.reload()
         with patch.object(e_goods_services, "make_post", return_value=(True, {})):
             e_goods_services.upload_item_to_efris(item, self.company, {})
         self.assertEqual(frappe.db.get_value("Item", item.name, "efris_registered"), 1)

@@ -4,6 +4,7 @@ from uganda_compliance.efris.utils.utils import efris_log_info, efris_log_error
 from uganda_compliance.efris.api_classes.efris_api import make_post
 from uganda_compliance.efris.doctype.e_invoicing_settings.e_invoicing_settings import get_e_company_settings
 from functools import lru_cache
+from uganda_compliance.efris.efris_queue import get_efris_settings
 
 @frappe.whitelist()
 def has_efris_item_in_stock_ledger_entry(warehouse, company):
@@ -69,14 +70,32 @@ def before_save_item(doc, method):
 
     e_company = doc.get('efris_e_company', '')
     
-    if not is_registered_item:
+    if not get_efris_settings(e_company):
+        return
+    doc.efris_registered = 0
+    enqueue_item_registration(doc.name)
+
+
+def enqueue_item_registration(name):
+    frappe.enqueue(
+        "uganda_compliance.efris.api_classes.e_goods_services.process_item_registration",
+        name=name, queue="default", timeout=300, enqueue_after_commit=True,
+        deduplicate=True, job_id=f"efris-item::{frappe.local.site}::{name}",
+    )
+
+
+def process_item_registration(name):
+    with frappe.cache.lock(f"efris-item::{name}", timeout=300):
+        doc = frappe.get_doc("Item", name)
+        e_company = doc.get("efris_e_company")
+        if not doc.efris_item or doc.disabled or doc.efris_registered or not get_efris_settings(e_company):
+            return
         query_result = query_item_before_post(doc)
         if query_result:
-            update_existing_item(doc, method, e_company)
+            update_existing_item(doc, None, e_company)
         else:
-            upload_new_item(doc, method, e_company)
-    else:
-        update_existing_item(doc, method, e_company)
+            upload_new_item(doc, None, e_company)
+
 
 def query_item_before_post(doc):
     e_company = doc.get('efris_e_company', '')
@@ -223,7 +242,7 @@ def upload_item_to_efris(doc, e_company, goods_upload):
         efris_log_info(f"Item successfully uploaded to EFRIS for {e_company}")
         frappe.msgprint(f"Item successfully uploaded to EFRIS for {e_company}")
         if not doc.efris_registered:
-            doc.efris_registered = 1
+            doc.db_set("efris_registered", 1, update_modified=False)
             efris_log_info(f"The Value Of Is EFRIS Registered is updated to {doc.get('efris_registered', '')}")
     else:
         efris_log_error(f"Failed to upload item to EFRIS for {e_company}: {response}")

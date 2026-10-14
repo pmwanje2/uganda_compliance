@@ -18,11 +18,6 @@ def process_pending_efris_entries():
     """
     Function processes all Pending EFRIS Processes Like EFRIS Invoices, EFRIS Credit Notes, EFRIS Debit Notes, EFRIS Purchase Receipts, and EFRIS Stock Entries.
     """
-    synchronization_settings = get_e_company_settings()
-    if not synchronization_settings:
-        frappe.throw(_("E-Invoicing Settings not found. Please configure E-Invoicing Settings first."))
-    if not validate_company(synchronization_settings.company):
-        frappe.throw(_("Invalid Company in E-Invoicing Settings. Please check the company configuration."))
     try:
         process_pending_efris_stock_entries()
         efris_log_info("Processing Pending EFRIS Entries", "EFRIS Synchronization Center")
