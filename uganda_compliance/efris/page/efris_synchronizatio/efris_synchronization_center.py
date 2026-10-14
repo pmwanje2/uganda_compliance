@@ -20,7 +20,7 @@ def process_pending_efris_entries():
     """
     try:
         process_pending_efris_stock_entries()
-        efris_log_info("Processing Pending EFRIS Entries", "EFRIS Synchronization Center")
+        efris_log_info("Processing Pending EFRIS Entries")
  
     except Exception as e:        
         error_message = f"❌ EFRIS post failed for Stock Entry: {str(e)}"
