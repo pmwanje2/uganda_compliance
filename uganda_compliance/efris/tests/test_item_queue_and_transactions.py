@@ -87,4 +87,3 @@ class TestItemQueueAndTransactions(EfrisTestCase):
             self.assertEqual(frappe.db.count("Error Log"), error_logs_before)
         with self.subTest("info logger receives one message argument"):
             log_info.assert_called_once_with("Processing Pending EFRIS Entries")
-
