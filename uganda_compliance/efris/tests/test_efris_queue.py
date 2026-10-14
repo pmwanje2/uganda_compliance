@@ -508,9 +508,8 @@ class TestEfrisSendEndpointAsCashier(EfrisTestCase):
 			run_queued(ura)
 			frappe.set_user(self._cashier())
 			try:
-				with self._permission_seam(source_submit=True, e_invoice_write=False, invoice_name=inv.name):
-					with self.assertRaises(frappe.PermissionError):
-						e_invoice.send_pos_invoice_to_efris(name=inv.name)
+				with self._permission_seam(source_submit=True, e_invoice_write=False, invoice_name=inv.name), self.assertRaises(frappe.PermissionError):
+					e_invoice.send_pos_invoice_to_efris(name=inv.name)
 			finally:
 				frappe.set_user("Administrator")
 
@@ -534,9 +533,8 @@ class TestEfrisSendEndpointAsCashier(EfrisTestCase):
 			run_queued(ura)
 			frappe.set_user(self._cashier())
 			try:
-				with self._permission_seam(source_submit=True, e_invoice_write=False, invoice_name=inv.name):
-					with self.assertRaises(frappe.PermissionError):
-						e_invoice.generate_irn(frappe.as_json(inv))
+				with self._permission_seam(source_submit=True, e_invoice_write=False, invoice_name=inv.name), self.assertRaises(frappe.PermissionError):
+					e_invoice.generate_irn(frappe.as_json(inv))
 			finally:
 				frappe.set_user("Administrator")
 		self.assertEqual(len(ura.calls_for("T109")), 1)
