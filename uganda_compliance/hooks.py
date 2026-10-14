@@ -306,6 +306,5 @@ fixtures = [
         },
     },
     {"doctype": "Print Style", "filters": {"name": ["=", "Redesign"]}},
-    {"doctype": "Currency", "filters": {"efris_currency_code": ["!=", None]}},
     "EFRIS Payment Mode",
 ]
