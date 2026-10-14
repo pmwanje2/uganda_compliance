@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import frappe
 
-from uganda_compliance.efris.api_classes import e_goods_services, e_invoice
+from uganda_compliance.efris.api_classes import e_goods_services, e_invoice, stock_in
 from uganda_compliance.efris.page.efris_synchronizatio import efris_synchronization_center
 from uganda_compliance.efris.tests.efris_test_utils import fake_ura, make_pos_invoice
 from uganda_compliance.efris.tests.test_efris_queue import EfrisTestCase
@@ -36,6 +36,27 @@ class TestItemQueueAndTransactions(EfrisTestCase):
         with patch.object(e_goods_services, "make_post", return_value=(True, {})):
             e_goods_services.upload_item_to_efris(item, self.company, {})
         self.assertEqual(frappe.db.get_value("Item", item.name, "efris_registered"), 1)
+
+    def test_hourly_retries_item_registration_after_outage(self):
+        item = frappe.get_doc("Item", "EFRIS-TEST-SUGAR-1KG")
+        item.efris_e_company = self.company
+        item.standard_rate = 5900
+        item.efris_currency = "UGX"
+        jobs = []
+        with patch.object(frappe, "enqueue", lambda method, **kw: jobs.append(frappe._dict(method=method, **kw))):
+            item.save(ignore_permissions=True)
+            with patch.object(e_goods_services, "make_post", side_effect=TimeoutError("URA unreachable")):
+                with self.assertRaises(TimeoutError):
+                    frappe.get_attr(jobs[0].method)(jobs[0].name)
+            self.assertEqual(frappe.db.get_value("Item", item.name, "efris_registered"), 0)
+            jobs.clear()
+            stock_in.process_pending_efris_stock_entries()
+            self.assertTrue(any(job.name == item.name for job in jobs))
+            jobs.clear()
+            frappe.db.set_value("E Invoicing Settings", {"company": self.company}, "enabled", 0)
+            frappe.local.efris_company_settings_cache = {}
+            stock_in.process_pending_efris_stock_entries()
+            self.assertFalse(any(job.name == item.name for job in jobs))
 
     def test_discount_hook_does_not_commit_enclosing_transaction(self):
         with fake_ura():
