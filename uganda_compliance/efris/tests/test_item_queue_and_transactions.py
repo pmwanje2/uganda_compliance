@@ -75,3 +75,16 @@ class TestItemQueueAndTransactions(EfrisTestCase):
             efris_synchronization_center.process_pending_efris_entries()
         sweep.assert_called_once_with()
 
+    def test_hourly_sync_center_clean_run_logs_info_without_error_log(self):
+        error_logs_before = frappe.db.count("Error Log")
+        with patch.object(efris_synchronization_center, "process_pending_efris_stock_entries", return_value=[]), patch(
+            "uganda_compliance.efris.page.efris_synchronizatio.efris_synchronization_center.efris_log_info",
+            wraps=efris_synchronization_center.efris_log_info,
+        ) as log_info:
+            efris_synchronization_center.process_pending_efris_entries()
+
+        with self.subTest("clean run does not create an Error Log"):
+            self.assertEqual(frappe.db.count("Error Log"), error_logs_before)
+        with self.subTest("info logger receives one message argument"):
+            log_info.assert_called_once_with("Processing Pending EFRIS Entries")
+
