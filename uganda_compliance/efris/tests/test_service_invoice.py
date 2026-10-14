@@ -43,6 +43,19 @@ class TestServiceInvoice(EfrisTestCase):
             self.assertEqual(run_queued(ura)[0]["outcome"], "submitted")
         self.assertTrue(frappe.db.get_value("Sales Invoice", invoice.name, "efris_irn"))
 
+    def test_room_night_then_stock_line_in_non_efris_warehouse_is_refused(self):
+        invoice = self.room_night_invoice()
+        frappe.db.set_value("Item", TEST_ITEM, "is_stock_item", 1)
+        warehouse = frappe.db.get_value("Warehouse", {"company": self.company, "is_group": 0, "efris_warehouse": 0})
+        invoice.append("items", {"item_code": TEST_ITEM, "qty": 1, "rate": 5900, "uom": "Nos", "warehouse": warehouse})
+        with fake_ura() as ura:
+            with self.assertRaises(frappe.ValidationError):
+                invoice.insert(ignore_permissions=True)
+                invoice.submit()
+                run_queued(ura)
+            self.assertEqual(ura.calls_for("T109"), [])
+        self.assertFalse(invoice.get("efris_irn"))
+
     def test_stock_item_without_warehouse_still_refused(self):
         frappe.db.set_value("Item", TEST_ITEM, "is_stock_item", 1)
         invoice = frappe.get_doc({
