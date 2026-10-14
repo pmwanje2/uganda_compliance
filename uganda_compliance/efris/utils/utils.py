@@ -33,8 +33,7 @@ def safe_load_json(message):
 
 
 def efris_log_info(message):
-    # frappe.logger().info(message)
-    frappe.log_error("efris_log_info", message)
+    frappe.logger("uganda_compliance", allow_site=True).info(message)
 
 
 def efris_log_warning(message):
