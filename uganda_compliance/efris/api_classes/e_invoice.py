@@ -1366,7 +1366,6 @@ def set_efris_based_on_items(doc, items):
             doc.efris_customer_type = efris_customer_type
             doc.flags.ignore_validate_update_after_submit = True
             efris_log_info(f"Updated Sales Invoice for EFRIS compliance.")
-            break
 
 
 def sales_uom_validation(doc, method):

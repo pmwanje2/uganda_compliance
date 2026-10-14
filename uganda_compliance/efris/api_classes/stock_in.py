@@ -599,46 +599,46 @@ def before_submit_on_stock_entry(doc, method):
             efris_log_info(f"The Stock Entry {doc.name} is non EFRIS")
             continue
               
-    # Fetch the corresponding Purchase Receipt based on the item.efris_purchase_receipt_no
-    if efris_purchase_receipt_no:
-        purchase_doc = frappe.get_doc('Purchase Receipt', item.efris_purchase_receipt_no)
-        efris_log_info(f"Reference Purchase Receipt for {doc.name}: {purchase_doc.name}")        
-        if purchase_doc:
-            # Get efris_currency from Purchase Receipt
-            efris_currency = purchase_doc.get('currency')
+        # Fetch the corresponding Purchase Receipt based on the item.efris_purchase_receipt_no
+        if efris_purchase_receipt_no:
+            purchase_doc = frappe.get_doc('Purchase Receipt', item.efris_purchase_receipt_no)
+            efris_log_info(f"Reference Purchase Receipt for {doc.name}: {purchase_doc.name}")
+            if purchase_doc:
+                # Get efris_currency from Purchase Receipt
+                efris_currency = purchase_doc.get('currency')
+                efris_log_info(f"The efris currency is {efris_currency}")
+                purchase_company = purchase_doc.company
+                efris_log_info(f"The Purchase receipt company is {purchase_company}")
+                if purchase_company not in item_company:
+                    frappe.throw(f"The Item E-Company Must be the same as the Purchase Receipt Company ")
+                # Match item codes in both Stock Entry and Purchase Receipt
+                purchase_item = next((pi for pi in purchase_doc.get('items', []) if pi.item_code == item.item_code), None)
+
+                if purchase_item:
+                    # Set the currency and unit price for the matched item
+                    unit_price = purchase_item.rate
+                    efris_log_info(f"The efris Unit Price for {item.item_code} is {unit_price}")
+
+                    # Set the values for this specific item in Stock Entry
+                    item.efris_currency = efris_currency
+                    item.efris_unit_price = unit_price
+                else:
+                    efris_log_info(f"Item {item.item_code} not found in Purchase Receipt {purchase_doc.name}")
+        elif (purpose == 'Manufacture' or purpose == 'Material Transfer') and is_efris_warehouse:
+
+            item_master = frappe.get_doc('Item', item_code)
+
+            efris_log_info(f"Processing Manufacture Stock Entry for Item: {item_code}")
+            efris_currency = item_master.get('efris_currency') or 'UGX'
             efris_log_info(f"The efris currency is {efris_currency}")
-            purchase_company = purchase_doc.company
-            efris_log_info(f"The Purchase receipt company is {purchase_company}")
-            if purchase_company not in item_company:
-                frappe.throw(f"The Item E-Company Must be the same as the Purchase Receipt Company ")
-            # Match item codes in both Stock Entry and Purchase Receipt
-            purchase_item = next((pi for pi in purchase_doc.get('items', []) if pi.item_code == item.item_code), None)
-            
-            if purchase_item:
-                # Set the currency and unit price for the matched item
-                unit_price = purchase_item.rate
-                efris_log_info(f"The efris Unit Price for {item.item_code} is {unit_price}")
-                
-                # Set the values for this specific item in Stock Entry
-                item.efris_currency = efris_currency
-                item.efris_unit_price = unit_price
-            else:
-                efris_log_info(f"Item {item.item_code} not found in Purchase Receipt {purchase_doc.name}")
-    elif (purpose == 'Manufacture' or purpose == 'Material Transfer') and is_efris_warehouse:     
-       
-        item_master = frappe.get_doc('Item', item_code)       
-       
-        efris_log_info(f"Processing Manufacture Stock Entry for Item: {item_code}")
-        efris_currency = item_master.get('efris_currency') or 'UGX'
-        efris_log_info(f"The efris currency is {efris_currency}")           
-        
-        unit_price = item.basic_rate
-        efris_log_info(f"The efris Unit Price for {item_code} is {unit_price}")        
-        # Set the values for this specific item in Stock Entry
-        item.efris_currency = efris_currency
-        item.efris_unit_price = unit_price          
-    else:
-        efris_log_info(f"Purchase Receipt not found for {item.efris_purchase_receipt_no}")
+
+            unit_price = item.basic_rate
+            efris_log_info(f"The efris Unit Price for {item_code} is {unit_price}")
+            # Set the values for this specific item in Stock Entry
+            item.efris_currency = efris_currency
+            item.efris_unit_price = unit_price
+        else:
+            efris_log_info(f"Purchase Receipt not found for {item.efris_purchase_receipt_no}")
     
 
 @frappe.whitelist()
