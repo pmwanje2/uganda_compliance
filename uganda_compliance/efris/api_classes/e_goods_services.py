@@ -51,10 +51,19 @@ def check_efris_item_for_purchase_receipt(accept_warehouse, item_code):
 
     return {'is_efris': is_efris}
 
+def item_companies(doc):
+    """The child list is authoritative; retain legacy-only Items during upgrades."""
+    rows = doc.get("efris_companies") or []
+    if rows:
+        return {row.company: row.registered for row in rows if row.company}
+    company = doc.get("efris_e_company")
+    return {company: doc.get("efris_registered", 0)} if company else {}
+
+
 def before_save_item(doc, method):
     is_import = frappe.flags.in_import
     is_registered_item = doc.get("efris_registered", 0)
-    if is_import and is_registered_item == 1:
+    if is_import and is_registered_item == 1 and not doc.get("efris_companies"):
         return
 
     is_efris_item = doc.get('efris_item')
@@ -68,37 +77,42 @@ def before_save_item(doc, method):
     if has_opening_stock:
         frappe.throw("You Should Not ADD Opening Stock, Opening Stock is Stocked-In to EFRIS Via Stock Reconciliation")
 
-    e_company = doc.get('efris_e_company', '')
-    
-    if not get_efris_settings(e_company):
-        return
-    doc.efris_registered = 0
-    enqueue_item_registration(doc.name)
+    for company in item_companies(doc):
+        if not get_efris_settings(company):
+            continue
+        for row in doc.get("efris_companies") or []:
+            if row.company == company:
+                row.registered = 0
+        if company == doc.get("efris_e_company"):
+            doc.efris_registered = 0
+        enqueue_item_registration(doc.name, company)
 
 
-def enqueue_item_registration(name):
+def enqueue_item_registration(name, company=None):
+    company = company or frappe.db.get_value("Item", name, "efris_e_company")
     frappe.enqueue(
         "uganda_compliance.efris.api_classes.e_goods_services.process_item_registration",
-        name=name, queue="default", timeout=300, enqueue_after_commit=True,
-        deduplicate=True, job_id=f"efris-item::{frappe.local.site}::{name}",
+        name=name, company=company, queue="default", timeout=300, enqueue_after_commit=True,
+        deduplicate=True, job_id=f"efris-item::{frappe.local.site}::{name}::{company}",
     )
 
 
-def process_item_registration(name):
-    with frappe.cache.lock(f"efris-item::{name}", timeout=300):
+def process_item_registration(name, company=None):
+    company = company or frappe.db.get_value("Item", name, "efris_e_company")
+    with frappe.cache.lock(f"efris-item::{frappe.local.site}::{name}::{company}", timeout=300):
         doc = frappe.get_doc("Item", name)
-        e_company = doc.get("efris_e_company")
-        if not doc.efris_item or doc.disabled or doc.efris_registered or not get_efris_settings(e_company):
+        registered = item_companies(doc).get(company)
+        if not doc.efris_item or doc.disabled or registered is None or registered or not get_efris_settings(company):
             return
-        query_result = query_item_before_post(doc)
+        query_result = query_item_before_post(doc, company)
         if query_result:
-            update_existing_item(doc, None, e_company)
+            update_existing_item(doc, None, company)
         else:
-            upload_new_item(doc, None, e_company)
+            upload_new_item(doc, None, company)
 
 
-def query_item_before_post(doc):
-    e_company = doc.get('efris_e_company', '')
+def query_item_before_post(doc, e_company=None):
+    e_company = e_company or doc.get('efris_e_company', '')
     item_code = ""
     item_code = doc.get('item_code', '')
     efris_log_info(f"Item Code :{item_code}") 
@@ -241,7 +255,10 @@ def upload_item_to_efris(doc, e_company, goods_upload):
     if success:
         efris_log_info(f"Item successfully uploaded to EFRIS for {e_company}")
         frappe.msgprint(f"Item successfully uploaded to EFRIS for {e_company}")
-        if not doc.efris_registered:
+        for row in doc.get("efris_companies") or []:
+            if row.company == e_company:
+                row.db_set("registered", 1, update_modified=False)
+        if doc.get("efris_e_company") == e_company and not doc.efris_registered:
             doc.db_set("efris_registered", 1, update_modified=False)
             efris_log_info(f"The Value Of Is EFRIS Registered is updated to {doc.get('efris_registered', '')}")
     else:

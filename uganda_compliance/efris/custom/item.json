@@ -1,6 +1,17 @@
 {
  "custom_fields": [
   {
+   "dt": "Item",
+   "fieldname": "efris_companies",
+   "fieldtype": "Table",
+   "label": "EFRIS Companies",
+   "options": "EFRIS Item Company",
+   "insert_after": "efris_e_company",
+   "depends_on": "eval: doc.efris_item == 1",
+   "module": "EFRIS",
+   "name": "Item-efris_companies"
+  },
+  {
    "_assign": null,
    "_comments": null,
    "_liked_by": null,
@@ -36,7 +47,7 @@
    "is_virtual": 0,
    "label": "E Company",
    "length": 0,
-   "mandatory_depends_on": "eval: doc.efris_item == 1",
+   "mandatory_depends_on": null,
    "modified": null,
    "modified_by": null,
    "module": "EFRIS",

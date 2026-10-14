@@ -1,0 +1,29 @@
+{
+ "doctype": "DocType",
+ "name": "EFRIS Item Company",
+ "module": "EFRIS",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["company", "registered"],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "registered",
+   "fieldtype": "Check",
+   "label": "Registered",
+   "default": "0",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1
+  }
+ ],
+ "permissions": []
+}
