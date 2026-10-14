@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -482,18 +483,84 @@ class TestEfrisSendEndpointAsCashier(EfrisTestCase):
 			user.add_roles("Accounts User")
 		return email
 
-	def test_cashier_with_submit_permission_can_retry(self):
+	def _permission_seam(self, *, source_submit, e_invoice_write, invoice_name):
+		original = frappe.has_permission
+
+		def has_permission(doctype, ptype="read", doc=None, **kwargs):
+			if doctype == "POS Invoice" and ptype == "read":
+				return True
+			if doctype == "POS Invoice" and ptype == "submit":
+				return source_submit
+			if doctype == "E Invoice" and ptype == "write":
+				self.assertEqual(getattr(doc, "doctype", None), "E Invoice")
+				self.assertEqual(getattr(doc, "name", None), invoice_name)
+				if kwargs.get("throw") and not e_invoice_write:
+					raise frappe.PermissionError("E Invoice write denied")
+				return e_invoice_write
+			return original(doctype, ptype, doc=doc, **kwargs)
+
+		return patch("frappe.has_permission", side_effect=has_permission)
+
+	def test_cashier_with_submit_permission_cannot_retry_without_e_invoice_write(self):
 		with fake_ura() as ura:
 			ura.responses["T109"] = [(False, "URA down")]
 			inv = make_pos_invoice(self.ctx)
 			run_queued(ura)
 			frappe.set_user(self._cashier())
 			try:
-				result = e_invoice.send_pos_invoice_to_efris(name=inv.name)
+				with self._permission_seam(source_submit=True, e_invoice_write=False, invoice_name=inv.name), self.assertRaises(frappe.PermissionError):
+					e_invoice.send_pos_invoice_to_efris(name=inv.name)
+			finally:
+				frappe.set_user("Administrator")
+
+	def test_e_invoice_writer_can_retry_without_source_submit_permission(self):
+		with fake_ura() as ura:
+			ura.responses["T109"] = [(False, "URA down"), (True, ura.invoice_response())]
+			inv = make_pos_invoice(self.ctx)
+			run_queued(ura)
+			frappe.set_user(self._cashier())
+			try:
+				with self._permission_seam(source_submit=False, e_invoice_write=True, invoice_name=inv.name):
+					result = e_invoice.send_pos_invoice_to_efris(name=inv.name)
 			finally:
 				frappe.set_user("Administrator")
 		self.assertEqual(result["status"], "success")
-		self.assertEqual(reload(inv).efris_status, "Submitted")
+
+	def test_legacy_resend_requires_e_invoice_write_not_source_submit(self):
+		with fake_ura() as ura:
+			ura.responses["T109"] = [(False, "URA down")]
+			inv = make_pos_invoice(self.ctx)
+			run_queued(ura)
+			frappe.set_user(self._cashier())
+			try:
+				with self._permission_seam(source_submit=True, e_invoice_write=False, invoice_name=inv.name), self.assertRaises(frappe.PermissionError):
+					e_invoice.generate_irn(frappe.as_json(inv))
+			finally:
+				frappe.set_user("Administrator")
+		self.assertEqual(len(ura.calls_for("T109")), 1)
+
+	def test_legacy_e_invoice_writer_does_not_need_source_submit(self):
+		with fake_ura() as ura:
+			ura.responses["T109"] = [(False, "URA down"), (True, ura.invoice_response())]
+			inv = make_pos_invoice(self.ctx)
+			run_queued(ura)
+			frappe.set_user(self._cashier())
+			try:
+				with self._permission_seam(source_submit=False, e_invoice_write=True, invoice_name=inv.name):
+					e_invoice.generate_irn(frappe.as_json(inv))
+			finally:
+				frappe.set_user("Administrator")
+		self.assertTrue(reload(inv).efris_irn)
+
+	def test_system_background_retry_does_not_use_manual_permission_gate(self):
+		with fake_ura() as ura:
+			ura.responses["T109"] = [(False, "URA down"), (True, ura.invoice_response())]
+			inv = make_pos_invoice(self.ctx)
+			run_queued(ura)
+			self.assertEqual(frappe.session.user, "Administrator")
+			with patch("frappe.has_permission", side_effect=AssertionError("manual gate reached by worker")):
+				result = efris_queue.process_efris_submission("POS Invoice", inv.name)
+		self.assertEqual(result["outcome"], "submitted")
 
 
 class TestEfrisSalesInvoice(EfrisTestCase):

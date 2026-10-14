@@ -1075,7 +1075,7 @@ def send_to_efris(doc=None, name=None):
     """Manual "Submit To EFRIS" for a Sales Invoice.
 
     Only the document name is used: the invoice is loaded server-side and the user
-    must have submit permission on it (a client-built doc is never fiscalised).
+    must have write permission on its E Invoice (a client-built doc is never fiscalised).
     """
     from uganda_compliance.efris.efris_queue import send_invoice_to_efris
     result = send_invoice_to_efris("Sales Invoice", name or doc)
@@ -1264,9 +1264,11 @@ def check_credit_note_approval_status():
 @frappe.whitelist(methods=["POST"])
 @rate_limit(limit=30, seconds=60)
 def generate_irn(sales_invoice_doc):
-    doc = _load_invoice(sales_invoice_doc, "submit")
+    from uganda_compliance.efris.efris_queue import check_e_invoice_write_permission
+    doc = _load_invoice(sales_invoice_doc, "read")
     if doc.docstatus != 1:
         frappe.throw(_("Only submitted invoices can be sent to EFRIS"))
+    check_e_invoice_write_permission(doc)
     efris_log_info(f"generate_irn for doc: {doc.doctype} {doc.name}")
     return EInvoiceAPI.generate_irn(frappe.as_json(doc))
 
