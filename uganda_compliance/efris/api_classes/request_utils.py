@@ -60,7 +60,7 @@ def post_req(data, mode_post_url):
         url = mode_post_url    
 
     headers = {"Content-Type": "application/json"}
-    response = requests.post(url, data=data, headers=headers)
+    response = requests.post(url, data=data, headers=headers, timeout=(10, 120))
     return response.text
 
 def get_ug_time_str():
