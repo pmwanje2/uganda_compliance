@@ -60,8 +60,7 @@ def process_stock_submission(doctype, name):
                 send_stock_reconciliation(doc)
             else:
                 send_stock_entry(doc)
-        except Exception:
-            frappe.logger("efris").exception("EFRIS stock submission remains pending")
+        except Exception:  # noqa: BLE001 - a worker failure must not roll back the document
             frappe.clear_last_message()
             frappe.log_error(title=f"EFRIS stock pending: {doctype} {name}", message=frappe.get_traceback())
             # Completed groups remain registered; the hourly sweep retries only
@@ -791,7 +790,9 @@ def get_serial_batch_no(serial_and_batch_bundle):
 @frappe.whitelist()
 def process_pending_efris_stock_entries():
     """Queue pending child rows using the existing registration flags."""
-    from uganda_compliance.efris.api_classes.e_goods_services import enqueue_item_registration
+    from uganda_compliance.efris.api_classes.e_goods_services import (
+        enqueue_item_registration,
+    )
 
     for item in frappe.get_all("Item", filters={"efris_item": 1, "efris_registered": 0, "disabled": 0},
                                fields=["name", "efris_e_company"]):

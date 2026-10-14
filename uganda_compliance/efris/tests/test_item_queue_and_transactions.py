@@ -3,7 +3,9 @@ from unittest.mock import patch
 import frappe
 
 from uganda_compliance.efris.api_classes import e_goods_services, e_invoice, stock_in
-from uganda_compliance.efris.page.efris_synchronizatio import efris_synchronization_center
+from uganda_compliance.efris.page.efris_synchronizatio import (
+    efris_synchronization_center,
+)
 from uganda_compliance.efris.tests.efris_test_utils import fake_ura, make_pos_invoice
 from uganda_compliance.efris.tests.test_efris_queue import EfrisTestCase
 
@@ -45,9 +47,8 @@ class TestItemQueueAndTransactions(EfrisTestCase):
         jobs = []
         with patch.object(frappe, "enqueue", lambda method, **kw: jobs.append(frappe._dict(method=method, **kw))):
             item.save(ignore_permissions=True)
-            with patch.object(e_goods_services, "make_post", side_effect=TimeoutError("URA unreachable")):
-                with self.assertRaises(TimeoutError):
-                    frappe.get_attr(jobs[0].method)(jobs[0].name)
+            with patch.object(e_goods_services, "make_post", side_effect=TimeoutError("URA unreachable")), self.assertRaises(TimeoutError):
+                frappe.get_attr(jobs[0].method)(jobs[0].name)
             self.assertEqual(frappe.db.get_value("Item", item.name, "efris_registered"), 0)
             jobs.clear()
             stock_in.process_pending_efris_stock_entries()
