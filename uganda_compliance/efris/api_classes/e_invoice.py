@@ -1321,16 +1321,10 @@ def Sales_invoice_is_efris_validation(doc, method):
 def validate_efris_warehouse(doc):
     """Validate EFRIS warehouse settings."""
     set_warehouse = doc.get("set_warehouse")
-    target_warehouse = set_warehouse or next(
-        (
-            item.get("warehouse")
-            for item in doc.get("items", [])
-            if item.get("warehouse") and frappe.db.get_value("Item", item.get("item_code"), "is_stock_item")
-        ),
-        None,
-    )
-
-    if target_warehouse:
+    for item in doc.get("items", []):
+        target_warehouse = item.get("warehouse") or set_warehouse
+        if not target_warehouse or not frappe.db.get_value("Item", item.get("item_code"), "is_stock_item"):
+            continue
         is_efris_warehouse = frappe.db.get_value(
             "Warehouse", {"name": target_warehouse}, "efris_warehouse"
         )
