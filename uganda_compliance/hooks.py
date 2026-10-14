@@ -60,10 +60,9 @@ add_to_apps_screen = [
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "uganda_compliance.utils.jinja_methods",
-# 	"filters": "uganda_compliance.utils.jinja_filters"
-# }
+jinja = {
+    "methods": ["uganda_compliance.efris.print_utils.efris_receipt_data"],
+}
 
 # Installation
 # ------------
@@ -142,10 +141,11 @@ scheduler_events = {
     # ],
     "daily": [
         #   "uganda_compliance.tasks.daily",
-        "uganda_compliance.efris.api_classes.e_invoice.check_credit_note_approval_status",
         "uganda_compliance.efris.api_classes.efris_invoice_sync.efris_invoice_sync",
     ],
     "hourly": [
+        "uganda_compliance.efris.efris_queue.retry_pending_efris_submissions",
+        "uganda_compliance.efris.api_classes.e_invoice.check_credit_note_approval_status",
         "uganda_compliance.efris.page.efris_synchronizatio.efris_synchronization_center.process_pending_efris_entries",
         "uganda_compliance.efris.api_classes.stock_in.process_pending_efris_stock_entries",
     ],
@@ -233,12 +233,13 @@ app_include_js = "/assets/uganda_compliance/js/item_custom.js"
 
 doc_events = {
     "Sales Invoice": {
-        "on_submit": "uganda_compliance.efris.api_classes.e_invoice.on_submit_sales_invoice",
+        "on_submit": "uganda_compliance.efris.efris_queue.on_submit_invoice",
         "on_update": [
             "uganda_compliance.efris.api_classes.e_invoice.on_update_sales_invoice",
             "uganda_compliance.efris.api_classes.e_invoice.calculate_additional_discounts",
         ],
         "on_cancel": "uganda_compliance.efris.api_classes.e_invoice.on_cancel_sales_invoice",
+        "before_cancel": "uganda_compliance.efris.efris_queue.on_cancel_invoice",
         "before_save": [
             "uganda_compliance.efris.api_classes.e_invoice.Sales_invoice_is_efris_validation",
             "uganda_compliance.efris.api_classes.e_invoice.sales_uom_validation",
@@ -260,10 +261,7 @@ doc_events = {
         "on_submit": "uganda_compliance.efris.api_classes.stock_in.before_submit_on_stock_entry"
     },
     "E Invoicing Settings": {
-        "before_save": [
-            "uganda_compliance.efris.doctype.e_invoicing_settings.e_invoicing_settings.before_save",
-            "uganda_compliance.efris.doctype.e_invoicing_settings.e_invoicing_settings.update_efris_company",
-        ],
+        "before_save": "uganda_compliance.efris.doctype.e_invoicing_settings.e_invoicing_settings.update_efris_company",
         "on_update": "uganda_compliance.efris.doctype.e_invoicing_settings.e_invoicing_settings.on_update",
     },
     "Stock Reconciliation": {
@@ -275,20 +273,30 @@ doc_events = {
     "Company": {
         "before_save": "uganda_compliance.efris.api_classes.e_company.before_save_query_company"
     },
+    "POS Invoice": {
+        "on_submit": "uganda_compliance.efris.efris_queue.on_submit_invoice",
+        "before_cancel": "uganda_compliance.efris.efris_queue.on_cancel_invoice",
+        "before_save": [
+            "uganda_compliance.efris.api_classes.e_invoice.Sales_invoice_is_efris_validation",
+            "uganda_compliance.efris.api_classes.e_invoice.sales_uom_validation",
+            "uganda_compliance.efris.api_classes.e_invoice.calculate_additional_discounts",
+        ],
+    },
 }
 
-
-doctype_list_js = {
-    "Sales Invoice": ["efris/client_scripts/sales_invoice.js"],
-    "Purchase Receipt": ["efris/client_scripts/purchase_receipt.js"],
-    "Stock Entry": ["efris/client_scripts/stock_entry.js"],
-    "E Invoicing Settings": [
-        "efris/doctype/e_invoicing_settings/e_invoicing_settings.js"
-    ],
-    "Stock Reconciliation": ["efris/client_scripts/stock_reconciliation.js"],
-    "Item": ["efris/client_scripts/item.js"],
-    "Company": ["efris/client_scripts/company.js"],
-    "Warehouse": ["efris/client_scripts/warehouse.js"],
+# Form scripts: these register frappe.ui.form.on handlers, so they belong in
+# doctype_js (loaded with the form). They used to be registered via
+# doctype_list_js, which only worked after the list view had been opened.
+# E Invoicing Settings is not listed: its own doctype JS is loaded by Frappe.
+doctype_js = {
+    "Sales Invoice": "efris/client_scripts/sales_invoice.js",
+    "Purchase Receipt": "efris/client_scripts/purchase_receipt.js",
+    "Stock Entry": "efris/client_scripts/stock_entry.js",
+    "Stock Reconciliation": "efris/client_scripts/stock_reconciliation.js",
+    "Item": "efris/client_scripts/item.js",
+    "Company": "efris/client_scripts/company.js",
+    "Warehouse": "efris/client_scripts/warehouse.js",
+    "POS Invoice": "efris/client_scripts/pos_invoice.js",
 }
 
 

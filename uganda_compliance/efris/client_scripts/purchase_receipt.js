@@ -167,3 +167,4 @@ function check_efris_stockin(frm, cdt, cdn) {
         }
     });
 }
+

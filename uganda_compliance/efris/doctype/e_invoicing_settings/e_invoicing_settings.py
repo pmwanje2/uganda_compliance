@@ -6,8 +6,40 @@ from uganda_compliance.efris.utils.utils import efris_log_info, efris_log_error
 from frappe.utils.password import get_decrypted_password, set_encrypted_password    
 
 
-# Global cache to store E Invoicing Settings by company name
-e_company_settings_cache = {}
+class _RequestScopedCache:
+    """E Invoicing Settings cache that lives for one request/job only.
+
+    It used to be a module-level dict, i.e. per worker process and never invalidated
+    across processes: after a Sandbox -> Production switch, running workers kept
+    posting to the sandbox URL with the sandbox key until restarted.
+    """
+
+    def _store(self):
+        store = getattr(frappe.local, "efris_company_settings_cache", None)
+        if store is None:
+            store = frappe.local.efris_company_settings_cache = {}
+        return store
+
+    def __contains__(self, key):
+        return key in self._store()
+
+    def __getitem__(self, key):
+        return self._store()[key]
+
+    def __setitem__(self, key, value):
+        self._store()[key] = value
+
+    def __delitem__(self, key):
+        del self._store()[key]
+
+    def pop(self, key, default=None):
+        return self._store().pop(key, default)
+
+    def clear(self):
+        self._store().clear()
+
+
+e_company_settings_cache = _RequestScopedCache()
 
 def before_save_e_invoicing_settings(doc):
     old_doc = doc.get_doc_before_save()
@@ -36,24 +68,23 @@ def get_mode_decrypted_password(doc):
     return None
 
 
-@frappe.whitelist()
-def before_save(doc, method):
-    doc.before_save()
+TAX_TEMPLATE_DOCTYPES = {
+    "Sales Tax": ("Sales Taxes and Charges Template", "sales_taxes_and_charges_template"),
+    "Purchase Tax": ("Purchase Taxes and Charges Template", "purchase_taxes_and_charges_template"),
+}
+
 
 @frappe.whitelist()
 def get_e_tax_template(company_name, tax_type):
-    efris_log_info(f"get_e_tax_template called with company_name, tax_type: {company_name}, {tax_type} ")
-    e_settings = get_e_company_settings(company_name)
-    template_name = None
-    if tax_type == 'Sales Tax':
-        template_name = e_settings.sales_taxes_and_charges_template
-    elif tax_type == 'Purchase Tax':
-        template_name = e_settings.purchase_taxes_and_charges_template
-    else:
-        frappe.throw(f"Unsupported Tax Type: {tax_type}")
-    
-    # Fetch the template and its child table details
-    template_doc = frappe.get_doc('Sales Taxes and Charges Template', template_name)
+    if not frappe.has_permission("Company", "read", company_name):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+    if tax_type not in TAX_TEMPLATE_DOCTYPES:
+        frappe.throw(_("Unsupported Tax Type: {0}").format(tax_type))
+    template_doctype, settings_field = TAX_TEMPLATE_DOCTYPES[tax_type]
+
+    template_name = get_e_company_settings(company_name).get(settings_field)
+    frappe.has_permission(template_doctype, "read", template_name, throw=True)
+    template_doc = frappe.get_doc(template_doctype, template_name)
     taxes_details = [
         {
             'charge_type': tax.charge_type,
@@ -90,8 +121,28 @@ def get_mode_post_url(e_settings):
     else:
         frappe.throw("E Invoicing Settings are disabled")
 
-@frappe.whitelist()    
+# Fields safe to return to browser clients (no key paths, passwords or portal URLs).
+CLIENT_SAFE_SETTINGS_FIELDS = (
+    "name", "company", "enabled", "sandbox_mode", "auto_send_submitted_invoice",
+    "enforce_update_stock", "sales_invoice_submission",
+)
+
+
+@frappe.whitelist()
+def get_e_company_client_settings(company_name):
+    """Browser-facing subset of E Invoicing Settings (form scripts only need flags)."""
+    if not frappe.has_permission("Company", "read", company_name):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+    settings = get_e_company_settings(company_name)
+    return frappe._dict({k: settings.get(k) for k in CLIENT_SAFE_SETTINGS_FIELDS})
+
+
 def get_e_company_settings(company_name):
+    """Full settings (incl. key paths) for server-side use. Not whitelisted."""
+    return _get_e_company_settings(company_name)
+
+
+def _get_e_company_settings(company_name):
     if company_name in e_company_settings_cache:
         return e_company_settings_cache[company_name]
     
@@ -119,14 +170,16 @@ def get_e_company_settings(company_name):
 
 class EInvoicingSettings(Document):
     def before_save(self):
+        # validate() has already run (Frappe calls it before before_save)
         e_company_settings_cache.pop(self.company, None)
-        self.validate()
         before_save_e_invoicing_settings(self)
 
     def validate(self):
         """
         Validate E Invoicing Settings before saving.
         """
+        if not self.seller_reference_prefix:
+            self.seller_reference_prefix = frappe.generate_hash(length=5).upper()
         self.create_tax_templates()
 
     def create_tax_templates(self):
@@ -222,8 +275,8 @@ class EInvoicingSettings(Document):
         purchase_template.insert(ignore_permissions=True)
         return purchase_template
 
-@frappe.whitelist()
 def create_item_tax_templates(doc):
+    """Called from E Invoicing Settings.validate only (not an API: it inserts with ignore_permissions)."""
     output_vat_account = doc.get("output_vat_account")
     e_company = doc.get("company")
     
