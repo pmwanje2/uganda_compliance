@@ -454,6 +454,8 @@ def _submit_invoice(doc, settings):
 	looked up: our own earlier attempt is adopted, another invoice's moves this
 	invoice to the next free reference, which is sent once more.
 	"""
+	e_invoice_api.EInvoiceAPI.create_einvoice(doc.name, source_doctype=doc.doctype)
+	_commit_before_ura_call()
 	try:
 		e_invoice_api.EInvoiceAPI.generate_irn(frappe.as_json(doc))
 	except frappe.ValidationError as e:
@@ -466,6 +468,8 @@ def _submit_invoice(doc, settings):
 			return
 		if doc.efris_seller_reference_no == reference:
 			raise
+		e_invoice_api.EInvoiceAPI.create_einvoice(doc.name, source_doctype=doc.doctype)
+		_commit_before_ura_call()
 		e_invoice_api.EInvoiceAPI.generate_irn(frappe.as_json(doc))
 
 
