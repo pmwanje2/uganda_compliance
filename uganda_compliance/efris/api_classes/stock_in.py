@@ -652,11 +652,11 @@ def before_save_on_purchase_receipt(doc,method):
             efris_log_info(f"The Purchase {doc.name} is non EFRIS")
             return
         item_code = item.get('item_code')
-        item_company = frappe.db.get_value('Item',{'item_code':item_code},'efris_e_company')
-        efris_log_info(f"The Item Company is {item_company}") 
+        from uganda_compliance.efris.api_classes.e_goods_services import item_companies
+        companies = item_companies(frappe.get_doc("Item", item_code))
         company = doc.get('company')
         efris_log_info(f"The Purchase Receipt Company is {company}") 
-        if not  item_company ==  company:
+        if company not in companies:
             frappe.throw(f"The Purchase Receipt Company and Item's E- Company Should Be the same") 
 
 @frappe.whitelist()
@@ -792,12 +792,13 @@ def process_pending_efris_stock_entries():
     """Queue pending child rows using the existing registration flags."""
     from uganda_compliance.efris.api_classes.e_goods_services import (
         enqueue_item_registration,
+        item_companies,
     )
 
-    for item in frappe.get_all("Item", filters={"efris_item": 1, "efris_registered": 0, "disabled": 0},
-                               fields=["name", "efris_e_company"]):
-        if get_efris_settings(item.efris_e_company):
-            enqueue_item_registration(item.name)
+    for name in frappe.get_all("Item", filters={"efris_item": 1, "disabled": 0}, pluck="name"):
+        for company, registered in item_companies(frappe.get_doc("Item", name)).items():
+            if not registered and get_efris_settings(company):
+                enqueue_item_registration(name, company)
     queued = []
     for doctype in ("Purchase Receipt", "Stock Reconciliation", "Stock Entry"):
         for name in frappe.get_all(doctype, filters={"docstatus": 1}, pluck="name"):

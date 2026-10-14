@@ -1,0 +1,3 @@
+[pre_model_sync]
+[post_model_sync]
+uganda_compliance.patches.v16.item_companies
